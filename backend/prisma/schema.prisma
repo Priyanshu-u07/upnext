@@ -1,0 +1,141 @@
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// ─── Organization ─────────────────────────────────────────────
+model Organization {
+  id        String    @id @default(uuid())
+  name      String
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  users     User[]
+  services  Service[]
+}
+
+// ─── User ─────────────────────────────────────────────────────
+model User {
+  id             String       @id @default(uuid())
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id])
+  name           String
+  email          String       @unique
+  passwordHash   String
+  role           Role         @default(CUSTOMER)
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+  tickets        Ticket[]
+  auditLogs      AuditLog[]   @relation("PerformedBy")
+  counter        Counter?     @relation("StaffCounter")
+}
+
+enum Role {
+  ADMIN
+  STAFF
+  CUSTOMER
+}
+
+// ─── Service ──────────────────────────────────────────────────
+model Service {
+  id                 String    @id @default(uuid())
+  organizationId     String
+  organization       Organization @relation(fields: [organizationId], references: [id])
+  name               String       // "General Consultation", "Lab Tests"
+  prefix             String    @default("A") // Token prefix: A, B, C
+  averageServiceTime Int       @default(10)  // Average service time in minutes
+  isActive           Boolean   @default(true)
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
+  queues             Queue[]
+  counters           Counter[]
+}
+
+// ─── Counter ──────────────────────────────────────────────────
+model Counter {
+  id        String   @id @default(uuid())
+  serviceId String
+  service   Service  @relation(fields: [serviceId], references: [id])
+  name      String   // "Counter 1", "Dr. Smith"
+  staffId   String?  @unique
+  staff     User?    @relation("StaffCounter", fields: [staffId], references: [id])
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  tickets   Ticket[] @relation("ServedAt")
+}
+
+// ─── Queue ────────────────────────────────────────────────────
+// One queue per service per day
+model Queue {
+  id        String      @id @default(uuid())
+  serviceId String
+  service   Service     @relation(fields: [serviceId], references: [id])
+  date      DateTime    @default(now()) @db.Date
+  status    QueueStatus @default(OPEN)
+  createdAt DateTime    @default(now())
+  updatedAt DateTime    @updatedAt
+  tickets   Ticket[]
+
+  @@unique([serviceId, date])
+}
+
+enum QueueStatus {
+  OPEN
+  CLOSED
+  PAUSED
+}
+
+// ─── Ticket ───────────────────────────────────────────────────
+model Ticket {
+  id             String       @id @default(uuid())
+  queueId        String
+  queue          Queue        @relation(fields: [queueId], references: [id])
+  tokenNumber    Int          // Sequential: 1, 2, 3...
+  // Display token derived at runtime: service.prefix + "-" + padStart(tokenNumber, 2, "0")
+  customerId     String?
+  customer       User?        @relation(fields: [customerId], references: [id])
+  status         TicketStatus @default(WAITING)
+  priority       Priority     @default(NORMAL)
+  priorityReason String?
+  counterId      String?
+  counter        Counter?     @relation("ServedAt", fields: [counterId], references: [id])
+  createdAt      DateTime     @default(now())
+  calledAt       DateTime?
+  servingAt      DateTime?
+  completedAt    DateTime?
+  updatedAt      DateTime     @updatedAt
+  auditLogs      AuditLog[]
+
+  @@unique([queueId, tokenNumber]) // Prevent duplicate tokens per queue
+}
+
+enum TicketStatus {
+  WAITING
+  CALLED
+  SERVING
+  COMPLETED
+  SKIPPED
+  CANCELLED
+  EXPIRED
+}
+
+enum Priority {
+  NORMAL
+  PRIORITY
+}
+
+// ─── Audit Log ────────────────────────────────────────────────
+model AuditLog {
+  id          String   @id @default(uuid())
+  ticketId    String?
+  ticket      Ticket?  @relation(fields: [ticketId], references: [id])
+  action      String   // "JOINED", "CALLED", "COMPLETED", "SKIPPED", etc.
+  details     Json?    // Additional context
+  performedBy String?
+  performer   User?    @relation("PerformedBy", fields: [performedBy], references: [id])
+  createdAt   DateTime @default(now())
+}
