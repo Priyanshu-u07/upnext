@@ -50,16 +50,25 @@ async function getOrCreateTodayQueue(serviceId: string) {
 
 // ─── Helper: Convert ticket to API response ─────────────────
 
+interface TicketService {
+  id: string;
+  name: string;
+  prefix: string;
+  averageServiceTime: number;
+}
+
 function toTicketResponse(
-  ticket: Ticket & { queue?: { service?: { prefix: string; averageServiceTime: number } } },
-  prefix: string,
-  position: number | null = null,
-  averageServiceTime: number = 10
+  ticket: Ticket,
+  service: TicketService,
+  position: number | null = null
 ): TicketResponse {
+  const { averageServiceTime } = service;
   return {
     id: ticket.id,
+    serviceId: service.id,
+    serviceName: service.name,
     tokenNumber: ticket.tokenNumber,
-    tokenDisplay: formatToken(prefix, ticket.tokenNumber),
+    tokenDisplay: formatToken(service.prefix, ticket.tokenNumber),
     status: ticket.status,
     priority: ticket.priority,
     position,
@@ -112,7 +121,7 @@ export async function joinQueue(
 
     if (existingTicket) {
       const position = await getPositionInQueue(existingTicket.id);
-      return toTicketResponse(existingTicket, service.prefix, position, service.averageServiceTime);
+      return toTicketResponse(existingTicket, service, position);
     }
   }
 
@@ -140,7 +149,7 @@ export async function joinQueue(
   });
 
   const position = await getPositionInQueue(ticket.id);
-  return toTicketResponse(ticket, service.prefix, position, service.averageServiceTime);
+  return toTicketResponse(ticket, service, position);
 }
 
 // ─── Get Queue Status ───────────────────────────────────────
@@ -204,7 +213,7 @@ export async function getTicket(ticketId: string): Promise<TicketResponse> {
       queue: {
         include: {
           service: {
-            select: { prefix: true, averageServiceTime: true },
+            select: { id: true, name: true, prefix: true, averageServiceTime: true },
           },
         },
       },
@@ -215,11 +224,9 @@ export async function getTicket(ticketId: string): Promise<TicketResponse> {
     throw new NotFoundError('Ticket not found');
   }
 
-  const prefix = ticket.queue.service.prefix;
-  const avgTime = ticket.queue.service.averageServiceTime;
   const position = await getPositionInQueue(ticketId);
 
-  return toTicketResponse(ticket, prefix, position, avgTime);
+  return toTicketResponse(ticket, ticket.queue.service, position);
 }
 
 // ─── Get Position in Queue ──────────────────────────────────
@@ -259,7 +266,7 @@ export async function cancelTicket(ticketId: string): Promise<TicketResponse> {
     include: {
       queue: {
         include: {
-          service: { select: { prefix: true, averageServiceTime: true } },
+          service: { select: { id: true, name: true, prefix: true, averageServiceTime: true } },
         },
       },
     },
@@ -280,7 +287,7 @@ export async function cancelTicket(ticketId: string): Promise<TicketResponse> {
     data: { status: 'CANCELLED' },
   });
 
-  return toTicketResponse(updated, ticket.queue.service.prefix, null, ticket.queue.service.averageServiceTime);
+  return toTicketResponse(updated, ticket.queue.service);
 }
 
 // ─── Staff: Get Full Queue ──────────────────────────────────
@@ -309,7 +316,7 @@ export async function getStaffQueue(serviceId: string): Promise<StaffQueueRespon
     queueId: queue.id,
     status: queue.status,
     currentlyServing: servingTicket
-      ? toTicketResponse(servingTicket, service.prefix, null, service.averageServiceTime)
+      ? toTicketResponse(servingTicket, service)
       : null,
     tickets: tickets.map((t) => {
       const position = t.status === 'WAITING'
@@ -317,7 +324,7 @@ export async function getStaffQueue(serviceId: string): Promise<StaffQueueRespon
             (other) => other.status === 'WAITING' && other.tokenNumber < t.tokenNumber
           ).length
         : null;
-      return toTicketResponse(t, service.prefix, position, service.averageServiceTime);
+      return toTicketResponse(t, service, position);
     }),
     totalWaiting,
     totalServedToday: totalServed,
@@ -362,7 +369,7 @@ export async function callNext(serviceId: string): Promise<TicketResponse> {
     });
   });
 
-  return toTicketResponse(ticket, service.prefix, null, service.averageServiceTime);
+  return toTicketResponse(ticket, service);
 }
 
 // ─── Staff: Complete Ticket ─────────────────────────────────
@@ -375,7 +382,7 @@ export async function completeTicket(ticketId: string): Promise<TicketResponse> 
     include: {
       queue: {
         include: {
-          service: { select: { prefix: true, averageServiceTime: true } },
+          service: { select: { id: true, name: true, prefix: true, averageServiceTime: true } },
         },
       },
     },
@@ -399,7 +406,7 @@ export async function completeTicket(ticketId: string): Promise<TicketResponse> 
     },
   });
 
-  return toTicketResponse(updated, ticket.queue.service.prefix, null, ticket.queue.service.averageServiceTime);
+  return toTicketResponse(updated, ticket.queue.service);
 }
 
 // ─── Staff: Skip Ticket (No-Show) ──────────────────────────
@@ -412,7 +419,7 @@ export async function skipTicket(ticketId: string): Promise<TicketResponse> {
     include: {
       queue: {
         include: {
-          service: { select: { prefix: true, averageServiceTime: true } },
+          service: { select: { id: true, name: true, prefix: true, averageServiceTime: true } },
         },
       },
     },
@@ -433,7 +440,7 @@ export async function skipTicket(ticketId: string): Promise<TicketResponse> {
     data: { status: 'SKIPPED' },
   });
 
-  return toTicketResponse(updated, ticket.queue.service.prefix, null, ticket.queue.service.averageServiceTime);
+  return toTicketResponse(updated, ticket.queue.service);
 }
 
 // ─── Staff: Recall Ticket ───────────────────────────────────
@@ -446,7 +453,7 @@ export async function recallTicket(ticketId: string): Promise<TicketResponse> {
     include: {
       queue: {
         include: {
-          service: { select: { prefix: true, averageServiceTime: true } },
+          service: { select: { id: true, name: true, prefix: true, averageServiceTime: true } },
         },
       },
     },
@@ -470,7 +477,7 @@ export async function recallTicket(ticketId: string): Promise<TicketResponse> {
     },
   });
 
-  return toTicketResponse(updated, ticket.queue.service.prefix, null, ticket.queue.service.averageServiceTime);
+  return toTicketResponse(updated, ticket.queue.service);
 }
 
 // ─── Get All Services ───────────────────────────────────────

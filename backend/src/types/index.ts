@@ -4,6 +4,10 @@ import { z } from 'zod';
 
 export interface TicketResponse {
   id: string;
+  // A ticket has to say which service it belongs to: the customer screen holds
+  // only a ticket id, and needs the service to show what is being served now.
+  serviceId: string;
+  serviceName: string;
   tokenNumber: number;
   tokenDisplay: string; // Derived: prefix + tokenNumber
   status: string;
