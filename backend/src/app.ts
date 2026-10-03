@@ -3,6 +3,7 @@ import cors from 'cors';
 import queueRoutes from './routes/queue.routes.js';
 import staffRoutes from './routes/staff.routes.js';
 import { errorHandler } from './middleware/errorHandler.js';
+import { requireStaffKey } from './middleware/staffAuth.js';
 
 const app = express();
 
@@ -29,8 +30,9 @@ app.get('/api/health', (_req, res) => {
 // Customer-facing routes
 app.use('/api', queueRoutes);
 
-// Staff-facing routes
-app.use('/api/staff', staffRoutes);
+// Staff-facing routes. The guard is mounted here rather than on each route so
+// a new staff endpoint is protected by default instead of by remembering.
+app.use('/api/staff', requireStaffKey, staffRoutes);
 
 // ─── Error Handling ─────────────────────────────────────────
 app.use(errorHandler);

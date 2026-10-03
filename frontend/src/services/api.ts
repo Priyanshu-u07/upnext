@@ -1,3 +1,4 @@
+import { getStaffKey } from '../utils/storage'
 import type {
   Organization,
   QueueStatusView,
@@ -92,17 +93,31 @@ export const cancelTicket = (ticketId: string) =>
 
 // ─── Staff ──────────────────────────────────────────────────
 
+/**
+ * Staff calls carry the shared key as a header.
+ *
+ * A missing key produces the same 401 as a wrong one, which the dashboard turns
+ * into a prompt rather than an error — on a fresh reception machine the key has
+ * simply not been entered yet.
+ */
+const staffRequest = <T>(path: string, init?: RequestInit) =>
+  request<T>(path, {
+    ...init,
+    headers: { 'x-staff-key': getStaffKey() ?? '' },
+  })
+
+
 export const getStaffQueue = (serviceId: string) =>
-  request<StaffQueueView>(`/staff/queues/${serviceId}`)
+  staffRequest<StaffQueueView>(`/staff/queues/${serviceId}`)
 
 export const callNext = (serviceId: string) =>
-  request<Ticket>(`/staff/queues/${serviceId}/call-next`, { method: 'POST' })
+  staffRequest<Ticket>(`/staff/queues/${serviceId}/call-next`, { method: 'POST' })
 
 export const completeTicket = (ticketId: string) =>
-  request<Ticket>(`/staff/tickets/${ticketId}/complete`, { method: 'POST' })
+  staffRequest<Ticket>(`/staff/tickets/${ticketId}/complete`, { method: 'POST' })
 
 export const skipTicket = (ticketId: string) =>
-  request<Ticket>(`/staff/tickets/${ticketId}/skip`, { method: 'POST' })
+  staffRequest<Ticket>(`/staff/tickets/${ticketId}/skip`, { method: 'POST' })
 
 export const recallTicket = (ticketId: string) =>
-  request<Ticket>(`/staff/tickets/${ticketId}/recall`, { method: 'POST' })
+  staffRequest<Ticket>(`/staff/tickets/${ticketId}/recall`, { method: 'POST' })

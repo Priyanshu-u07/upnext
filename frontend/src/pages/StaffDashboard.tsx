@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from 'react'
 import ConnectionStatus from '../components/ConnectionStatus'
 import { useQueue } from '../hooks/useQueue'
 import {
+  ApiError,
   callNext,
   completeTicket,
   getServices,
@@ -10,6 +11,7 @@ import {
   skipTicket,
 } from '../services/api'
 import type { Service, StaffQueueView, Ticket, TicketStatus } from '../types'
+import { getStaffKey, storeStaffKey } from '../utils/storage'
 
 /**
  * The receptionist's screen — what replaces the notebook.
@@ -35,6 +37,9 @@ export default function StaffDashboard() {
   const [serviceId, setServiceId] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
   const [actionError, setActionError] = useState<string | null>(null)
+  // A fresh reception machine simply has not been given the key yet, so a 401
+  // is a prompt rather than an error.
+  const [needsKey, setNeedsKey] = useState(() => getStaffKey() === null)
 
   useEffect(() => {
     getServices()
@@ -54,6 +59,10 @@ export default function StaffDashboard() {
       setQueue(await getStaffQueue(serviceId))
       setError(null)
     } catch (err) {
+      if (err instanceof ApiError && err.status === 401) {
+        setNeedsKey(true)
+        return
+      }
       setError(err instanceof Error ? err : new Error(String(err)))
     }
   }, [serviceId])
@@ -91,13 +100,29 @@ export default function StaffDashboard() {
       await fn()
       void refresh()
     } catch (err) {
-      setActionError(err instanceof Error ? err.message : 'Action failed')
+      if (err instanceof ApiError && err.status === 401) {
+        setNeedsKey(true)
+      } else {
+        setActionError(err instanceof Error ? err.message : 'Action failed')
+      }
     } finally {
       setBusy(false)
     }
   }
 
   const active = queue?.tickets.filter((t) => t.status !== 'COMPLETED' && t.status !== 'CANCELLED')
+
+  if (needsKey) {
+    return (
+      <StaffKeyPrompt
+        onSubmit={(key) => {
+          storeStaffKey(key)
+          setNeedsKey(false)
+          void refresh()
+        }}
+      />
+    )
+  }
 
   return (
     <main className="mx-auto max-w-3xl px-4 py-8">
@@ -233,5 +258,47 @@ function Stat({ label, value }: { label: string; value: string }) {
       <dt className="text-xs tracking-wide text-slate-400 uppercase">{label}</dt>
       <dd className="mt-1 text-2xl font-semibold tabular-nums text-slate-900">{value}</dd>
     </div>
+  )
+}
+
+/**
+ * Asked once per reception machine.
+ *
+ * The key is typed rather than shipped so it never appears in the bundle, where
+ * any patient could read it out of devtools.
+ */
+function StaffKeyPrompt({ onSubmit }: { onSubmit: (key: string) => void }) {
+  const [value, setValue] = useState('')
+
+  return (
+    <main className="mx-auto flex min-h-screen max-w-sm flex-col justify-center px-4">
+      <h1 className="text-xl font-semibold text-slate-900">Reception</h1>
+      <p className="mt-1 text-sm text-slate-500">
+        Enter the staff key to manage the queue. You only need to do this once on this
+        computer.
+      </p>
+      <form
+        className="mt-6 space-y-3"
+        onSubmit={(e) => {
+          e.preventDefault()
+          if (value.trim()) onSubmit(value.trim())
+        }}
+      >
+        <input
+          type="password"
+          value={value}
+          onChange={(e) => setValue(e.target.value)}
+          autoFocus
+          className="w-full rounded-xl border border-slate-200 px-4 py-3"
+          placeholder="Staff key"
+        />
+        <button
+          type="submit"
+          className="w-full rounded-xl bg-slate-900 px-5 py-3 font-medium text-white"
+        >
+          Continue
+        </button>
+      </form>
+    </main>
   )
 }

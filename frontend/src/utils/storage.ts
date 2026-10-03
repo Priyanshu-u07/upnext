@@ -34,3 +34,35 @@ export function clearStoredTicketId(): void {
     // Non-fatal.
   }
 }
+
+/**
+ * The reception desk's shared key.
+ *
+ * Kept here rather than compiled into the bundle, so it is not readable by any
+ * patient who opens devtools. Staff type it once per machine.
+ */
+const STAFF_KEY = 'queue.staffKey'
+
+export function getStaffKey(): string | null {
+  try {
+    return localStorage.getItem(STAFF_KEY)
+  } catch {
+    return null
+  }
+}
+
+export function storeStaffKey(key: string): void {
+  try {
+    localStorage.setItem(STAFF_KEY, key)
+  } catch {
+    // Non-fatal: the dashboard will ask again next time.
+  }
+}
+
+export function clearStaffKey(): void {
+  try {
+    localStorage.removeItem(STAFF_KEY)
+  } catch {
+    // Non-fatal.
+  }
+}
