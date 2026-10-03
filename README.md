@@ -118,6 +118,59 @@ npm run dev
 Then open three tabs: `/`, `/staff`, `/display`. The staff dashboard asks once
 for the key from `STAFF_KEY` in `backend/.env`.
 
+### If it does not start
+
+**`failed to connect to the docker API`** — Docker is installed but not running.
+Start Docker Desktop and wait for it to finish starting, then try again.
+
+**`port is already allocated`** on 5432 — something else is already running
+PostgreSQL. Stop it, or change the host port in `docker-compose.yml` to
+`5433:5432` and update `DATABASE_URL` in `backend/.env` to match.
+
+**The page loads but every number shows `—`** — the backend is not running, or
+is not on port 3001. Check http://localhost:3001/api/health returns
+`{"status":"ok"}`.
+
+**The staff dashboard asks for a key** — that is expected. It is `STAFF_KEY`
+from `backend/.env`, and it is only asked once per browser.
+
+## Using it for your own place
+
+The venue is data, not code. Nothing in the schema knows what a clinic is —
+`Organization`, `Service`, `Queue`, `Ticket` — so changing it is changing rows.
+
+Edit `backend/prisma/seed.ts`:
+
+```ts
+name: 'City Health Clinic'        // your name
+
+name: 'General Consultation',     // what people queue for
+prefix: 'A',                      // tokens become A-01, A-02 ...
+averageServiceTime: 10,           // minutes, drives the wait estimate
+```
+
+Then `npm run db:seed` and it is your queue.
+
+One rule when choosing services: **a service is a line with its own server**,
+not a thing a customer can ask for. A clinic with a doctor and a lab technician
+is two services. One person offering two kinds of appointment is *one* service —
+splitting it would make the system call two people at once.
+
+Also change `STAFF_KEY` in `backend/.env` before anyone else can reach it.
+
+### Running it somewhere real
+
+Build the frontend and serve it from the same Express process, so you deploy one
+Node process plus PostgreSQL. The wall display's QR code is generated from
+whatever address is serving the page, so it starts pointing at the right place
+on its own.
+
+For a single clinic you may not need a server at all: run it on the reception
+computer with `npm run dev:lan`, and phones on the clinic's wifi can reach it.
+That costs nothing and survives the internet going down — but it only works
+while people stay on that wifi, so it suits somewhere people wait just outside
+rather than walking away.
+
 ## How it works
 
 ```
