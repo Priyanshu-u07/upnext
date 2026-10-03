@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import ConnectionStatus from '../components/ConnectionStatus'
+import JoinQrCode from '../components/JoinQrCode'
 import { useQueue } from '../hooks/useQueue'
 import { getServices } from '../services/api'
 import type { Service } from '../types'
@@ -33,21 +34,45 @@ export default function PublicDisplay() {
   const { queue, connection } = useQueue(service?.id ?? null)
 
   return (
-    <main className="relative flex min-h-screen flex-col items-center justify-center bg-slate-950 px-6 text-center text-white">
-      <p className="text-2xl tracking-[0.3em] text-slate-500 uppercase">Now serving</p>
+    <main className="flex min-h-screen flex-col bg-slate-950 text-white">
+      <div className="flex flex-1 flex-col items-center justify-center px-6 text-center">
+        {/*
+          An idle queue gets words, not a placeholder. Rendering a dash at this
+          size turns it into a white bar the width of the screen, which reads as
+          a broken display rather than an empty one — and the one thing a screen
+          on a wall must never do is look broken.
+        */}
+        {queue?.currentlyServing ? (
+          <>
+            <p className="text-2xl tracking-[0.3em] text-slate-500 uppercase">Now serving</p>
+            <p className="mt-4 text-[20vw] leading-none font-bold tracking-tight tabular-nums">
+              {queue.currentlyServing.tokenDisplay}
+            </p>
+          </>
+        ) : (
+          <p className="text-4xl text-slate-500">
+            {queue ? 'Nobody is being called right now' : 'Connecting…'}
+          </p>
+        )}
 
-      <p className="mt-4 text-[22vw] leading-none font-bold tracking-tight tabular-nums">
-        {queue?.currentlyServing?.tokenDisplay ?? '—'}
-      </p>
-
-      <p className="mt-10 text-3xl text-slate-400">
-        {queue ? `${queue.totalWaiting} waiting` : ' '}
-      </p>
-
-      <div className="absolute bottom-8 flex flex-col items-center gap-3">
-        <ConnectionStatus connection={connection} dark />
-        <p className="text-lg text-slate-600">{queue?.serviceName ?? ''}</p>
+        <p className="mt-8 text-3xl text-slate-400">
+          {queue ? `${queue.totalWaiting} waiting` : ' '}
+        </p>
       </div>
+
+      {/*
+        The join code sits at the bottom, deliberately below the fold of
+        attention. Someone already holding a token needs the number; only
+        someone who has just walked in needs the code, and they will look for it.
+      */}
+      <footer className="flex items-end justify-between gap-6 px-10 pb-8">
+        <div className="flex flex-col gap-3">
+          <ConnectionStatus connection={connection} dark />
+          <p className="text-xl text-slate-500">{queue?.serviceName ?? ''}</p>
+        </div>
+
+        <JoinQrCode />
+      </footer>
     </main>
   )
 }
