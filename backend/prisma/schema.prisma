@@ -72,6 +72,14 @@ model Counter {
 // One queue per service per day
 model Queue {
   id        String      @id @default(uuid())
+  /// Highest token number handed out for this queue.
+  ///
+  /// Incrementing this row is how a token is claimed. Postgres takes a row
+  /// lock for the UPDATE and re-reads the current value under it, so two
+  /// simultaneous joins are serialised by the database and cannot compute the
+  /// same next number. Reading MAX(tokenNumber) and adding one does not do
+  /// that: at Read Committed both transactions see the same maximum.
+  lastTokenNumber Int    @default(0)
   serviceId String
   service   Service     @relation(fields: [serviceId], references: [id])
   date      DateTime    @default(now()) @db.Date
