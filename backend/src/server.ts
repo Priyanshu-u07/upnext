@@ -1,15 +1,22 @@
 import 'dotenv/config';
+import { createServer } from 'node:http';
 import app from './app.js';
+import { initSocket } from './socket/socketManager.js';
 
 const PORT = process.env.PORT || 3001;
 
 /**
  * Server entry point.
  *
- * In Phase 3, this will also initialize Socket.IO
- * by attaching it to the HTTP server.
+ * Express no longer creates the listener itself: Socket.IO has to attach to
+ * the same HTTP server so that the WebSocket upgrade handshake and the REST
+ * API share one port.
  */
-const server = app.listen(PORT, () => {
+const server = createServer(app);
+
+initSocket(server);
+
+server.listen(PORT, () => {
   console.log(`
   ╔══════════════════════════════════════════════╗
   ║   Queue Management System — Backend API      ║

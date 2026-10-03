@@ -511,6 +511,29 @@ export async function recallTicket(ticketId: string): Promise<TicketResponse> {
  * Returns all active services for an organization.
  * Used by customers to select which queue to join.
  */
+/**
+ * Returns the venue this deployment serves.
+ *
+ * The schema is multi-tenant, but the API is not yet: one deployment serves
+ * one organization, so this returns the only one there is. Real multi-tenancy
+ * would pick the organization from a subdomain or a path segment.
+ *
+ * It exists so the frontend can show whose queue you have joined without the
+ * name being compiled into the page.
+ */
+export async function getOrganization() {
+  const organization = await prisma.organization.findFirst({
+    orderBy: { createdAt: 'asc' },
+    select: { id: true, name: true },
+  });
+
+  if (!organization) {
+    throw new NotFoundError('No organization configured');
+  }
+
+  return organization;
+}
+
 export async function getServices() {
   const services = await prisma.service.findMany({
     where: { isActive: true },

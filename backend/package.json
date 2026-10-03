@@ -28,6 +28,7 @@
     "dotenv": "^18.0.1",
     "express": "^5.2.1",
     "pg": "^8.23.0",
+    "socket.io": "^4.8.4",
     "zod": "^4.6.5"
   },
   "devDependencies": {

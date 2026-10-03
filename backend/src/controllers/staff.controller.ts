@@ -1,6 +1,7 @@
 import { RequestHandler } from 'express';
 import * as queueService from '../services/queue.service.js';
 import { requireParam } from '../utils/requireParam.js';
+import { emitQueueUpdated } from '../socket/socketManager.js';
 
 /**
  * Staff-facing controllers.
@@ -24,6 +25,7 @@ export const callNext: RequestHandler = async (req, res, next) => {
   try {
     const serviceId = requireParam(req.params.serviceId, 'serviceId');
     const ticket = await queueService.callNext(serviceId);
+    await emitQueueUpdated(serviceId, 'CALLED', ticket.id);
     res.json({ data: ticket });
   } catch (error) {
     next(error);
@@ -35,6 +37,7 @@ export const completeTicket: RequestHandler = async (req, res, next) => {
   try {
     const ticketId = requireParam(req.params.ticketId, 'ticketId');
     const ticket = await queueService.completeTicket(ticketId);
+    await emitQueueUpdated(ticket.serviceId, 'COMPLETED', ticket.id);
     res.json({ data: ticket });
   } catch (error) {
     next(error);
@@ -46,6 +49,7 @@ export const skipTicket: RequestHandler = async (req, res, next) => {
   try {
     const ticketId = requireParam(req.params.ticketId, 'ticketId');
     const ticket = await queueService.skipTicket(ticketId);
+    await emitQueueUpdated(ticket.serviceId, 'SKIPPED', ticket.id);
     res.json({ data: ticket });
   } catch (error) {
     next(error);
@@ -57,6 +61,7 @@ export const recallTicket: RequestHandler = async (req, res, next) => {
   try {
     const ticketId = requireParam(req.params.ticketId, 'ticketId');
     const ticket = await queueService.recallTicket(ticketId);
+    await emitQueueUpdated(ticket.serviceId, 'RECALLED', ticket.id);
     res.json({ data: ticket });
   } catch (error) {
     next(error);

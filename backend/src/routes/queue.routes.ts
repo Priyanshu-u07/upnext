@@ -8,12 +8,16 @@ const router = Router();
 /**
  * Customer-facing queue routes.
  *
+ * GET  /api/organization                → Which venue this is
  * GET  /api/services                    → List available services
  * POST /api/queues/:serviceId/join      → Join a queue
  * GET  /api/queues/:serviceId/status    → Get queue status
  * GET  /api/tickets/:ticketId           → Get ticket details + position
  * POST /api/tickets/:ticketId/cancel    → Cancel a ticket
  */
+
+// Which venue this deployment serves
+router.get('/organization', queueController.getOrganization);
 
 // List all available services
 router.get('/services', queueController.listServices);
