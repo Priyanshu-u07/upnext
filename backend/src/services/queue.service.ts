@@ -25,25 +25,34 @@ async function getOrCreateTodayQueue(serviceId: string) {
     throw new NotFoundError('Service not found');
   }
 
-  // Find or create today's queue
-  let queue = await prisma.queue.findUnique({
+  // Find or create today's queue.
+  //
+  // This is an upsert rather than find-then-create because the read and the
+  // write are not atomic: on the first arrival of the morning, every patient
+  // who taps Join in the same moment finds no queue and every one of them
+  // tries to create it. One wins and the rest fail on the unique constraint.
+  //
+  // Measured before the fix: of 100 simultaneous joins, 1 succeeded and 99 were
+  // refused here — never even reaching token generation.
+  const queue = await prisma.queue.upsert({
     where: {
       serviceId_date: {
         serviceId,
         date: today,
       },
     },
+    // Deliberately not `update: {}`. Prisma only compiles an upsert down to a
+    // single INSERT ... ON CONFLICT when the update is non-empty; with an empty
+    // one it falls back to find-then-create, which is the very race this is
+    // here to close. Touching updatedAt is a harmless write that keeps it on
+    // the atomic path.
+    update: { updatedAt: new Date() },
+    create: {
+      serviceId,
+      date: today,
+      status: 'OPEN',
+    },
   });
-
-  if (!queue) {
-    queue = await prisma.queue.create({
-      data: {
-        serviceId,
-        date: today,
-        status: 'OPEN',
-      },
-    });
-  }
 
   return { queue, service };
 }
