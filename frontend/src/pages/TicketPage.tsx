@@ -37,7 +37,7 @@ function headlineFor(ticket: Ticket): Headline {
     case 'SKIPPED':
       return {
         title: 'You missed your call',
-        detail: 'Show this to the receptionist — they can call you back in.',
+        detail: 'Show this to the receptionist. They can call you back in.',
         tone: 'urgent',
       }
     case 'COMPLETED':
@@ -54,7 +54,7 @@ function headlineFor(ticket: Ticket): Headline {
       if (ahead <= 2) {
         return {
           title: `${ahead} ${ahead === 1 ? 'person' : 'people'} ahead of you`,
-          detail: 'Almost your turn — head back now.',
+          detail: 'Almost your turn. Head back now.',
           tone: 'soon',
         }
       }
