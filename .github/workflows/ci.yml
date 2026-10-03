@@ -1,0 +1,79 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  backend:
+    runs-on: ubuntu-latest
+
+    # The concurrency tests exist to catch bugs that only appear at a real
+    # database's isolation level, so CI runs a real PostgreSQL rather than
+    # mocking the client. Mocks would pass while the code was wrong.
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: queue_user
+          POSTGRES_PASSWORD: queue_password
+          POSTGRES_DB: queue_management_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U queue_user"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
+    env:
+      DATABASE_URL: postgresql://queue_user:queue_password@localhost:5432/queue_management_test?schema=public
+      STAFF_KEY: ci-staff-key
+
+    defaults:
+      run:
+        working-directory: backend
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: backend/package-lock.json
+
+      # postinstall runs `prisma generate`, so the client is built here rather
+      # than committed. This step is also the check that a fresh clone works.
+      - run: npm ci
+
+      - run: npx prisma migrate deploy
+
+      - name: Type check
+        run: npm run typecheck
+
+      - name: Tests
+        run: npm test
+
+  frontend:
+    runs-on: ubuntu-latest
+
+    defaults:
+      run:
+        working-directory: frontend
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - run: npm ci
+
+      # `npm run build` runs tsc -b first, so this covers type checking too.
+      - name: Type check and build
+        run: npm run build
