@@ -346,6 +346,32 @@ export async function callNext(serviceId: string): Promise<TicketResponse> {
   const { queue, service } = await getOrCreateTodayQueue(serviceId);
 
   const ticket = await prisma.$transaction(async (tx) => {
+    // Close out whoever was called before.
+    //
+    // Pressing Call Next is the receptionist saying the previous patient is
+    // finished, so it counts as completing them. That is deliberate: it means
+    // one button per patient rather than two, and a busy reception desk will
+    // not reliably press two.
+    //
+    // It is also what keeps "currently serving" meaningful. Without it, every
+    // call leaves another ticket stuck in CALLED, and because the status query
+    // picks the most recently called, finishing the newest one makes the wall
+    // display jump backwards to a patient who was called an hour ago and has
+    // long since gone home.
+    //
+    // A patient who did not turn up should be marked absent with Skip instead,
+    // which is why that button exists.
+    await tx.ticket.updateMany({
+      where: {
+        queueId: queue.id,
+        status: { in: ['CALLED', 'SERVING'] },
+      },
+      data: {
+        status: 'COMPLETED',
+        completedAt: new Date(),
+      },
+    });
+
     // Find the next WAITING ticket (lowest token number)
     const nextTicket = await tx.ticket.findFirst({
       where: {
