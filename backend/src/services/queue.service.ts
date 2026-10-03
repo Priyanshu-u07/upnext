@@ -1,4 +1,4 @@
-import { Ticket, TicketStatus } from '../generated/prisma/client.js';
+import { Prisma, Ticket, TicketStatus } from '../generated/prisma/client.js';
 import prisma from '../lib/prisma.js';
 import { formatToken } from '../utils/formatToken.js';
 import {
@@ -118,7 +118,14 @@ export async function joinQueue(
     );
   }
 
-  // Idempotency: if customer already has an active ticket, return it
+  // Idempotency, fast path: a customer who already holds an active ticket gets
+  // that ticket back rather than a second one.
+  //
+  // This check alone is not enough. It and the insert below are separate
+  // statements, so a patient who double-taps Join on a slow connection can send
+  // two requests that both pass here before either inserts. The partial unique
+  // index Ticket_one_active_per_customer closes that window; the catch below
+  // turns the resulting violation back into the ticket they already have.
   if (customerId) {
     const existingTicket = await prisma.ticket.findFirst({
       where: {
@@ -135,7 +142,9 @@ export async function joinQueue(
   }
 
   // Generate token inside a transaction to prevent duplicate numbers
-  const ticket = await prisma.$transaction(async (tx) => {
+  let ticket;
+  try {
+    ticket = await prisma.$transaction(async (tx) => {
     // Claim the next token by incrementing the queue's counter.
     //
     // Postgres takes a row lock for this UPDATE and re-reads the value under
@@ -154,15 +163,42 @@ export async function joinQueue(
     });
 
     return tx.ticket.create({
-      data: {
-        queueId: queue.id,
-        tokenNumber: lastTokenNumber,
-        customerId: customerId ?? null,
-        status: 'WAITING',
-        priority: 'NORMAL',
-      },
+        data: {
+          queueId: queue.id,
+          tokenNumber: lastTokenNumber,
+          customerId: customerId ?? null,
+          status: 'WAITING',
+          priority: 'NORMAL',
+        },
+      });
     });
-  });
+  } catch (error) {
+    // Lost the double-tap race: the other request inserted first. Both taps
+    // were the same person asking for the same thing, so hand back the ticket
+    // that won rather than an error.
+    //
+    // The token counter was incremented inside the same transaction, so the
+    // rollback takes it back with the row — no gap in the numbering.
+    if (
+      error instanceof Prisma.PrismaClientKnownRequestError &&
+      error.code === 'P2002' &&
+      customerId
+    ) {
+      const existing = await prisma.ticket.findFirst({
+        where: {
+          queueId: queue.id,
+          customerId,
+          status: { in: ['WAITING', 'CALLED', 'SERVING'] },
+        },
+      });
+
+      if (existing) {
+        const position = await getPositionInQueue(existing.id);
+        return toTicketResponse(existing, service, position);
+      }
+    }
+    throw error;
+  }
 
   const position = await getPositionInQueue(ticket.id);
   return toTicketResponse(ticket, service, position);

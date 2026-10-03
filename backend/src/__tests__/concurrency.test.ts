@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it } from 'vitest';
-import prisma from '../lib/prisma.js';
 import * as queueService from '../services/queue.service.js';
+import { seedFixture, wipe } from './helpers.js';
 
 /**
  * What happens when two things occur at the same instant.
@@ -12,31 +12,9 @@ import * as queueService from '../services/queue.service.js';
 
 let serviceId: string;
 
-async function wipe() {
-  // Children before parents so foreign keys stay satisfied.
-  await prisma.auditLog.deleteMany();
-  await prisma.ticket.deleteMany();
-  await prisma.counter.deleteMany();
-  await prisma.queue.deleteMany();
-  await prisma.service.deleteMany();
-  await prisma.user.deleteMany();
-  await prisma.organization.deleteMany();
-}
-
 beforeEach(async () => {
   await wipe();
-  const organization = await prisma.organization.create({
-    data: { name: 'Test Clinic' },
-  });
-  const service = await prisma.service.create({
-    data: {
-      organizationId: organization.id,
-      name: 'General Consultation',
-      prefix: 'A',
-      averageServiceTime: 10,
-    },
-  });
-  serviceId = service.id;
+  ({ serviceId } = await seedFixture());
 });
 
 describe('joining a queue', () => {
