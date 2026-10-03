@@ -388,14 +388,34 @@ export async function callNext(serviceId: string): Promise<TicketResponse> {
       },
     });
 
-    // Find the next WAITING ticket (lowest token number)
-    const nextTicket = await tx.ticket.findFirst({
-      where: {
-        queueId: queue.id,
-        status: 'WAITING',
-      },
-      orderBy: { tokenNumber: 'asc' },
-    });
+    // Claim the next waiting ticket.
+    //
+    // Raw SQL because Prisma cannot express FOR UPDATE SKIP LOCKED, and that
+    // clause is the whole point. Reading the lowest WAITING ticket and then
+    // updating it is a lost update: two counters pressing Call Next together
+    // both read the same row and both write to it, so the second write wins
+    // silently and two counters call the same patient in. Nothing in the schema
+    // catches it — unlike the token race, there is no constraint to violate.
+    //
+    // FOR UPDATE locks the row for this transaction. SKIP LOCKED makes the
+    // second counter step over a row someone else already holds and take the
+    // next one instead. That is better than simply blocking: counter 2 does not
+    // wait for counter 1 to finish, it immediately gets the following patient,
+    // which is exactly what two counters working side by side should do.
+    //
+    // The parameter is interpolated by Prisma's tagged template, so it is sent
+    // as a bound parameter rather than spliced into the SQL text.
+    const claimed = await tx.$queryRaw<Array<{ id: string }>>`
+      SELECT id
+      FROM "Ticket"
+      WHERE "queueId" = ${queue.id}
+        AND status = 'WAITING'
+      ORDER BY "tokenNumber" ASC
+      LIMIT 1
+      FOR UPDATE SKIP LOCKED
+    `;
+
+    const nextTicket = claimed[0];
 
     if (!nextTicket) {
       throw new NotFoundError('No tickets waiting in queue');
