@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { ApiError, getServices, joinQueue } from '../services/api'
-import type { Service } from '../types'
+import { ApiError, getOrganization, getServices, joinQueue } from '../services/api'
+import type { Organization, Service } from '../types'
 import { getStoredTicketId, storeTicketId } from '../utils/storage'
 
 /**
@@ -13,6 +13,7 @@ import { getStoredTicketId, storeTicketId } from '../utils/storage'
  */
 export default function JoinPage() {
   const navigate = useNavigate()
+  const [organization, setOrganization] = useState<Organization | null>(null)
   const [services, setServices] = useState<Service[] | null>(null)
   const [joining, setJoining] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
@@ -23,6 +24,7 @@ export default function JoinPage() {
       navigate(`/ticket/${existing}`, { replace: true })
       return
     }
+    getOrganization().then(setOrganization).catch(() => {})
     getServices()
       .then(setServices)
       .catch((err: unknown) => setError(err instanceof Error ? err.message : 'Failed to load'))
@@ -43,7 +45,9 @@ export default function JoinPage() {
 
   return (
     <main className="mx-auto flex min-h-screen max-w-md flex-col justify-center px-4 py-10">
-      <h1 className="text-2xl font-semibold text-slate-900">City Health Clinic</h1>
+      <h1 className="text-2xl font-semibold text-slate-900">
+        {organization?.name ?? ' '}
+      </h1>
       <p className="mt-1 text-slate-500">Choose what you are here for.</p>
 
       {error && (

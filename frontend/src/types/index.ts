@@ -24,6 +24,12 @@ export type QueueStatus = 'OPEN' | 'CLOSED' | 'PAUSED'
 
 export type Priority = 'NORMAL' | 'PRIORITY'
 
+/** The venue this deployment serves — a clinic, a salon, an office. */
+export interface Organization {
+  id: string
+  name: string
+}
+
 export interface Service {
   id: string
   name: string

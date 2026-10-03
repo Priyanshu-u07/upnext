@@ -1,4 +1,10 @@
-import type { QueueStatusView, Service, StaffQueueView, Ticket } from '../types'
+import type {
+  Organization,
+  QueueStatusView,
+  Service,
+  StaffQueueView,
+  Ticket,
+} from '../types'
 
 /**
  * Typed client for the backend REST API.
@@ -65,6 +71,8 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
 }
 
 // ─── Customer ───────────────────────────────────────────────
+
+export const getOrganization = () => request<Organization>('/organization')
 
 export const getServices = () => request<Service[]>('/services')
 

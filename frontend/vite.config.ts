@@ -14,6 +14,13 @@ export default defineConfig({
         target: 'http://localhost:3001',
         changeOrigin: true,
       },
+      // Socket.IO's handshake starts as ordinary HTTP and then upgrades, so
+      // the proxy needs ws:true or the upgrade is dropped and the client
+      // silently falls back to long-polling forever.
+      '/socket.io': {
+        target: 'http://localhost:3001',
+        ws: true,
+      },
     },
   },
 })

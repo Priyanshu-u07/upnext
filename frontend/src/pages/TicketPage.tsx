@@ -1,7 +1,9 @@
-import { useCallback } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
-import { usePolling } from '../hooks/usePolling'
-import { cancelTicket, getQueueStatus, getTicket } from '../services/api'
+import ConnectionStatus from '../components/ConnectionStatus'
+import { useQueue } from '../hooks/useQueue'
+import { cancelTicket, getTicket } from '../services/api'
+import { movesExistingPositions } from '../socket/events'
 import type { Ticket } from '../types'
 import { clearStoredTicketId } from '../utils/storage'
 
@@ -29,11 +31,7 @@ interface Headline {
 function headlineFor(ticket: Ticket): Headline {
   switch (ticket.status) {
     case 'CALLED':
-      return {
-        title: 'It is your turn',
-        detail: 'Go to the counter now.',
-        tone: 'urgent',
-      }
+      return { title: 'It is your turn', detail: 'Go to the counter now.', tone: 'urgent' }
     case 'SERVING':
       return { title: 'You are being seen', detail: '', tone: 'calm' }
     case 'SKIPPED':
@@ -84,14 +82,49 @@ export default function TicketPage() {
   const { ticketId } = useParams<{ ticketId: string }>()
   const navigate = useNavigate()
 
-  const fetchTicket = useCallback(() => getTicket(ticketId!), [ticketId])
-  const { data: ticket, error, loading } = usePolling(fetchTicket, 5000)
+  const [ticket, setTicket] = useState<Ticket | null>(null)
+  const [loading, setLoading] = useState(true)
+  const [loadError, setLoadError] = useState<Error | null>(null)
 
-  // "Now serving" needs the service, which we only learn from the ticket, so
-  // this second poll stays disabled until the first one has answered.
-  const serviceId = ticket?.serviceId
-  const fetchStatus = useCallback(() => getQueueStatus(serviceId!), [serviceId])
-  const { data: queue } = usePolling(fetchStatus, 5000, Boolean(serviceId))
+  const refreshTicket = useCallback(async () => {
+    if (!ticketId) return
+    try {
+      setTicket(await getTicket(ticketId))
+      setLoadError(null)
+    } catch (err) {
+      setLoadError(err instanceof Error ? err : new Error(String(err)))
+    } finally {
+      setLoading(false)
+    }
+  }, [ticketId])
+
+  useEffect(() => {
+    void refreshTicket()
+  }, [refreshTicket])
+
+  // The service is only known once the ticket has loaded, so the subscription
+  // starts after the first read rather than on mount.
+  const { queue, lastEvent, connection } = useQueue(ticket?.serviceId ?? null)
+
+  /**
+   * A broadcast cannot carry this patient's position — that number differs for
+   * every viewer — so the phone refetches its own ticket when the queue moves.
+   *
+   * Not on every event, though. Someone joining behind you does not change your
+   * position, and at clinic scale a hundred connected phones all refetching on
+   * every event would turn one button press into a hundred simultaneous
+   * requests.
+   */
+  useEffect(() => {
+    if (!lastEvent) return
+    if (!movesExistingPositions(lastEvent.action)) return
+    void refreshTicket()
+  }, [lastEvent, refreshTicket])
+
+  // A reconnected client has no idea what it missed, so re-read the truth.
+  useEffect(() => {
+    if (connection === 'connected') void refreshTicket()
+  }, [connection, refreshTicket])
 
   async function handleCancel() {
     if (!ticket) return
@@ -101,7 +134,7 @@ export default function TicketPage() {
       clearStoredTicketId()
       navigate('/')
     } catch {
-      // The poll will show the real state shortly; no need to guess here.
+      void refreshTicket()
     }
   }
 
@@ -118,7 +151,7 @@ export default function TicketPage() {
     return (
       <Centered>
         <p className="text-slate-900">We could not find that ticket.</p>
-        <p className="mt-1 text-sm text-slate-500">{error?.message}</p>
+        <p className="mt-1 text-sm text-slate-500">{loadError?.message}</p>
         <button onClick={handleDone} className="mt-6 text-sm font-medium underline">
           Start again
         </button>
@@ -128,17 +161,13 @@ export default function TicketPage() {
 
   const headline = headlineFor(ticket)
   const finished =
-    ticket.status === 'COMPLETED' ||
-    ticket.status === 'CANCELLED' ||
-    ticket.status === 'EXPIRED'
+    ticket.status === 'COMPLETED' || ticket.status === 'CANCELLED' || ticket.status === 'EXPIRED'
 
   return (
     <main className="mx-auto flex min-h-screen max-w-md flex-col px-4 py-10">
       <p className="text-sm text-slate-500">{ticket.serviceName}</p>
 
-      <p className="mt-6 text-sm font-medium tracking-wide text-slate-400 uppercase">
-        Your token
-      </p>
+      <p className="mt-6 text-sm font-medium tracking-wide text-slate-400 uppercase">Your token</p>
       <p className="text-7xl font-bold tracking-tight tabular-nums text-slate-900">
         {ticket.tokenDisplay}
       </p>
@@ -150,19 +179,14 @@ export default function TicketPage() {
 
       {queue && (
         <dl className="mt-6 grid grid-cols-2 gap-3 text-center">
-          <Stat
-            label="Now serving"
-            value={queue.currentlyServing?.tokenDisplay ?? '—'}
-          />
+          <Stat label="Now serving" value={queue.currentlyServing?.tokenDisplay ?? '—'} />
           <Stat label="Waiting" value={String(queue.totalWaiting)} />
         </dl>
       )}
 
-      {error && (
-        <p className="mt-6 rounded-lg bg-amber-50 px-4 py-3 text-sm text-amber-800">
-          Cannot reach the clinic right now. Showing the last known position.
-        </p>
-      )}
+      <div className="mt-6">
+        <ConnectionStatus connection={connection} />
+      </div>
 
       <div className="mt-auto pt-10">
         {finished ? (
