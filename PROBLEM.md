@@ -99,6 +99,12 @@ is the one that matters** — it means "be back by this time".
 
 ## What this does not fix
 
+- **It assumes everyone in a queue takes about the same time.** The estimate is
+  built from one average per service. That holds for general consultation, where
+  almost every patient needs about ten minutes. It would not hold for a queue
+  mixing a ten-minute job with a fifty-minute one — the wait shown would be wrong
+  for most of the people reading it, and the wait is the whole reason anyone
+  feels safe leaving.
 - **It does not make the doctor faster.** If a hundred people each need ten minutes, that
   is still a long day. This project moves waiting out of the room. It does not remove it.
 - **It does not help someone without a smartphone.** This is a real gap. The public display
