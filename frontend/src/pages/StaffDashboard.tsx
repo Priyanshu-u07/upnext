@@ -16,10 +16,9 @@ import { getStaffKey, storeStaffKey } from '../utils/storage'
 /**
  * The receptionist's screen — what replaces the notebook.
  *
- * It is built around one button, because that is the whole budget. Today the
- * receptionist writes a name, calls it out, calls it again, and answers "how
- * many before me" all day. If this screen costs more attention than that, it
- * will not get used and the notebook comes back out.
+ * Built around one button, because that is the whole budget. Cost more
+ * attention than writing a name and calling it out, and the notebook comes
+ * back out.
  */
 
 const STATUS_STYLES: Record<TicketStatus, string> = {
@@ -71,12 +70,8 @@ export default function StaffDashboard() {
     void refresh()
   }, [refresh])
 
-  /**
-   * The broadcast carries the shared counters but not the ticket list, so this
-   * screen re-reads the list whenever anything changes. That is affordable here
-   * in a way it would not be on the patient screens: there is one reception
-   * desk, not a hundred phones.
-   */
+  // The broadcast carries the counters but not the ticket list, so re-read it
+  // on every change. Affordable here: one reception desk, not a hundred phones.
   const { lastEvent, connection } = useQueue(serviceId)
 
   useEffect(() => {
@@ -87,12 +82,8 @@ export default function StaffDashboard() {
     if (connection === 'connected') void refresh()
   }, [connection, refresh])
 
-  /**
-   * Actions still refresh directly rather than waiting for their own broadcast
-   * to come back. The round trip is short, but the receptionist pressing Call
-   * Next should see the result of their own press without depending on the
-   * socket being healthy.
-   */
+  // Refresh directly rather than waiting for our own broadcast: pressing Call
+  // Next should work even if the socket is unhealthy.
   async function act(fn: () => Promise<unknown>) {
     setBusy(true)
     setActionError(null)
@@ -261,12 +252,7 @@ function Stat({ label, value }: { label: string; value: string }) {
   )
 }
 
-/**
- * Asked once per reception machine.
- *
- * The key is typed rather than shipped so it never appears in the bundle, where
- * any patient could read it out of devtools.
- */
+/** Asked once per machine, so the key never appears in the bundle. */
 function StaffKeyPrompt({ onSubmit }: { onSubmit: (key: string) => void }) {
   const [value, setValue] = useState('')
 

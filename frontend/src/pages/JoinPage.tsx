@@ -47,11 +47,8 @@ export default function JoinPage() {
 
   return (
     <div className="min-h-screen bg-slate-100">
-      {/*
-        Dark chrome, light content. The wall display is near-black, so this gives
-        the two screens a family resemblance — and it stops the header reading as
-        an empty white band when a phone layout is opened on a desktop.
-      */}
+      {/* Dark chrome, light content: a family resemblance to the wall display,
+          and it stops the header reading as an empty band on a desktop. */}
       <header className="bg-slate-900 text-white">
         <div className="mx-auto max-w-md px-5 py-5">
           <h1 className="truncate text-lg leading-tight font-semibold">
@@ -97,14 +94,10 @@ export default function JoinPage() {
 /**
  * One queueable service, with how busy it is right now.
  *
- * The live counts are the reason this is a component rather than markup in a
- * loop: each card runs its own `useQueue`, so it subscribes to that service's
- * room and the numbers move on their own.
- *
- * They also answer the question the page was previously asking blind. If
- * General Consultation has 40 people waiting and Lab Tests has 2, that changes
- * what a patient does with their morning — and they could not see it before
- * choosing.
+ * A component rather than markup in a loop because each card runs its own
+ * `useQueue` and subscribes to that service's room, so the numbers move on
+ * their own. They also answer the question the page previously asked blind:
+ * 40 people waiting here and 2 there changes what a patient does.
  */
 function ServiceCard({
   service,
@@ -122,16 +115,14 @@ function ServiceCard({
   const waiting = queue?.totalWaiting
   const isOpen = queue?.status !== 'CLOSED' && queue?.status !== 'PAUSED'
 
-  // Joining now puts you behind everyone waiting. Leaning early for the same
-  // reason the ticket screen does: a patient who comes back too early waits a
-  // few minutes, one who comes back too late loses their place entirely.
+  // Leaning early, as the ticket screen does: back too early costs a few
+  // minutes, back too late costs your place.
   const roughWait =
     waiting === undefined ? undefined : Math.round(waiting * service.averageServiceTime * 0.7)
 
   return (
-    // A div, not a button. The card holds a definition list and the connection
-    // notice, and a <button> may only contain phrasing content — nesting blocks
-    // inside one is invalid and confuses screen readers about what is clickable.
+    // A div, not a button: <button> may only contain phrasing content, and
+    // nesting blocks confuses screen readers about what is clickable.
     <div className="rounded-2xl border border-slate-200 bg-white p-5">
       <div className="flex items-start justify-between gap-4">
         <div className="min-w-0">

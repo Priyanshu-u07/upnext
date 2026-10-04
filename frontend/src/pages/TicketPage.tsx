@@ -22,11 +22,9 @@ interface Headline {
 /**
  * Turns a ticket into the one sentence the patient actually needs.
  *
- * The wait is expressed as "be back in {min}" rather than the full range,
- * because the two errors are not symmetric. Quote the high end and a patient
- * who leaves may return to find they were called and sent to the back of the
- * line — worse than the notebook. Quote the low end and they sit for a few
- * extra minutes. So the estimate leans early on purpose.
+ * The wait is "be back in {min}", not the full range: the errors are not
+ * symmetric. Quote the high end and someone returns to find they were called
+ * and sent to the back; quote the low end and they wait a few extra minutes.
  */
 function headlineFor(ticket: Ticket): Headline {
   switch (ticket.status) {
@@ -106,22 +104,15 @@ export default function TicketPage() {
   // starts after the first read rather than on mount.
   const { queue, lastEvent, connection } = useQueue(ticket?.serviceId ?? null)
 
-  /**
-   * A broadcast cannot carry this patient's position — that number differs for
-   * every viewer — so the phone refetches its own ticket when the queue moves.
-   *
-   * Not on every event, though. Someone joining behind you does not change your
-   * position, and at clinic scale a hundred connected phones all refetching on
-   * every event would turn one button press into a hundred simultaneous
-   * requests.
-   */
+  // A broadcast cannot carry this patient's position, so refetch the ticket
+  // when the queue moves — but not on JOINED, or a hundred phones would
+  // refetch on every arrival.
   useEffect(() => {
     if (!lastEvent) return
     if (!movesExistingPositions(lastEvent.action)) return
     void refreshTicket()
   }, [lastEvent, refreshTicket])
 
-  // A reconnected client has no idea what it missed, so re-read the truth.
   useEffect(() => {
     if (connection === 'connected') void refreshTicket()
   }, [connection, refreshTicket])

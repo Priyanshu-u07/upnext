@@ -25,15 +25,9 @@ async function getOrCreateTodayQueue(serviceId: string) {
     throw new NotFoundError('Service not found');
   }
 
-  // Find or create today's queue.
-  //
-  // This is an upsert rather than find-then-create because the read and the
-  // write are not atomic: on the first arrival of the morning, every patient
-  // who taps Join in the same moment finds no queue and every one of them
-  // tries to create it. One wins and the rest fail on the unique constraint.
-  //
-  // Measured before the fix: of 100 simultaneous joins, 1 succeeded and 99 were
-  // refused here — never even reaching token generation.
+  // Upsert, not find-then-create: the read and the write are not atomic, so on
+  // the first arrival of the morning every simultaneous join finds no queue and
+  // all of them try to create it. Measured before the fix: 1 of 100 succeeded.
   const queue = await prisma.queue.upsert({
     where: {
       serviceId_date: {
@@ -41,11 +35,9 @@ async function getOrCreateTodayQueue(serviceId: string) {
         date: today,
       },
     },
-    // Deliberately not `update: {}`. Prisma only compiles an upsert down to a
-    // single INSERT ... ON CONFLICT when the update is non-empty; with an empty
-    // one it falls back to find-then-create, which is the very race this is
-    // here to close. Touching updatedAt is a harmless write that keeps it on
-    // the atomic path.
+    // Not `update: {}` — Prisma only compiles to INSERT ... ON CONFLICT when
+    // the update is non-empty, otherwise it falls back to find-then-create and
+    // the race returns.
     update: { updatedAt: new Date() },
     create: {
       serviceId,
@@ -118,14 +110,9 @@ export async function joinQueue(
     );
   }
 
-  // Idempotency, fast path: a customer who already holds an active ticket gets
-  // that ticket back rather than a second one.
-  //
-  // This check alone is not enough. It and the insert below are separate
-  // statements, so a patient who double-taps Join on a slow connection can send
-  // two requests that both pass here before either inserts. The partial unique
-  // index Ticket_one_active_per_customer closes that window; the catch below
-  // turns the resulting violation back into the ticket they already have.
+  // Fast path. Not sufficient on its own: this and the insert below are
+  // separate statements, so a double-tap can pass both. The partial unique
+  // index closes that window and the catch below recovers from it.
   if (customerId) {
     const existingTicket = await prisma.ticket.findFirst({
       where: {
@@ -145,17 +132,11 @@ export async function joinQueue(
   let ticket;
   try {
     ticket = await prisma.$transaction(async (tx) => {
-    // Claim the next token by incrementing the queue's counter.
+    // Claim a token by incrementing the queue counter. Postgres row-locks for
+    // the UPDATE and re-reads under it, so simultaneous joins serialise.
     //
-    // Postgres takes a row lock for this UPDATE and re-reads the value under
-    // it, so simultaneous joins queue up behind one another and each is handed
-    // a distinct number. The lock is held only until this transaction commits.
-    //
-    // The previous version read MAX(tokenNumber) and added one. At Postgres's
-    // default Read Committed isolation, concurrent transactions see the same
-    // maximum and compute the same next number; the unique constraint then
-    // rejects whoever loses. That is not a theoretical risk — measured on this
-    // code, 100 simultaneous joins produced 19 tokens and 81 errors.
+    // Reading MAX(tokenNumber)+1 does not: at Read Committed both transactions
+    // see the same maximum. Measured: 100 joins produced 19 tokens, 81 errors.
     const { lastTokenNumber } = await tx.queue.update({
       where: { id: queue.id },
       data: { lastTokenNumber: { increment: 1 } },
@@ -173,12 +154,9 @@ export async function joinQueue(
       });
     });
   } catch (error) {
-    // Lost the double-tap race: the other request inserted first. Both taps
-    // were the same person asking for the same thing, so hand back the ticket
-    // that won rather than an error.
-    //
-    // The token counter was incremented inside the same transaction, so the
-    // rollback takes it back with the row — no gap in the numbering.
+    // Lost the double-tap race. Both taps were the same person asking for the
+    // same thing, so return the ticket that won. The counter increment rolls
+    // back with the transaction, so the numbering has no gap.
     if (
       error instanceof Prisma.PrismaClientKnownRequestError &&
       error.code === 'P2002' &&
@@ -398,21 +376,11 @@ export async function callNext(serviceId: string): Promise<TicketResponse> {
   const { queue, service } = await getOrCreateTodayQueue(serviceId);
 
   const ticket = await prisma.$transaction(async (tx) => {
-    // Close out whoever was called before.
-    //
-    // Pressing Call Next is the receptionist saying the previous patient is
-    // finished, so it counts as completing them. That is deliberate: it means
-    // one button per patient rather than two, and a busy reception desk will
-    // not reliably press two.
-    //
-    // It is also what keeps "currently serving" meaningful. Without it, every
-    // call leaves another ticket stuck in CALLED, and because the status query
-    // picks the most recently called, finishing the newest one makes the wall
-    // display jump backwards to a patient who was called an hour ago and has
-    // long since gone home.
-    //
-    // A patient who did not turn up should be marked absent with Skip instead,
-    // which is why that button exists.
+    // Close out whoever was called before. One button per patient, because a
+    // busy desk will not reliably press two — and it is what keeps "currently
+    // serving" meaningful. Without it, calls pile up in CALLED and finishing
+    // the newest makes the display jump back to someone who went home an hour
+    // ago. A no-show is marked with Skip instead.
     await tx.ticket.updateMany({
       where: {
         queueId: queue.id,
@@ -424,23 +392,16 @@ export async function callNext(serviceId: string): Promise<TicketResponse> {
       },
     });
 
-    // Claim the next waiting ticket.
+    // Raw SQL because Prisma cannot express FOR UPDATE SKIP LOCKED, which is
+    // the whole point. Read-then-update is a lost update: two counters pressing
+    // Call Next together both read the same row and both write it, so the
+    // second wins silently and two counters call the same patient. No
+    // constraint catches this one.
     //
-    // Raw SQL because Prisma cannot express FOR UPDATE SKIP LOCKED, and that
-    // clause is the whole point. Reading the lowest WAITING ticket and then
-    // updating it is a lost update: two counters pressing Call Next together
-    // both read the same row and both write to it, so the second write wins
-    // silently and two counters call the same patient in. Nothing in the schema
-    // catches it — unlike the token race, there is no constraint to violate.
+    // SKIP LOCKED rather than plain locking so counter 2 takes the *next*
+    // patient instead of waiting for counter 1.
     //
-    // FOR UPDATE locks the row for this transaction. SKIP LOCKED makes the
-    // second counter step over a row someone else already holds and take the
-    // next one instead. That is better than simply blocking: counter 2 does not
-    // wait for counter 1 to finish, it immediately gets the following patient,
-    // which is exactly what two counters working side by side should do.
-    //
-    // The parameter is interpolated by Prisma's tagged template, so it is sent
-    // as a bound parameter rather than spliced into the SQL text.
+    // Prisma's tagged template binds the parameter rather than splicing it.
     const claimed = await tx.$queryRaw<Array<{ id: string }>>`
       SELECT id
       FROM "Ticket"

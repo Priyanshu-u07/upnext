@@ -5,27 +5,17 @@ import { AppError } from '../types/index.js';
 /**
  * A shared key on the staff endpoints.
  *
- * This is a lock on the door, not an identity system. It stops a patient who
- * reads the network tab from calling the next person in, which is the actual
- * hole it exists to close. It does not say *which* member of staff acted, so it
- * cannot support an audit trail, and everyone at the desk shares one secret
- * that can only be rotated by editing the environment and restarting.
+ * A lock on the door, not an identity system: it stops a patient calling the
+ * next person in, but cannot say which staff member acted. Real deployment
+ * needs per-user accounts.
  *
- * Real accounts were scoped out of this project deliberately — the problems
- * worth solving here were concurrency and keeping three screens consistent, and
- * JWT plumbing would have added files without adding any of that. Anything
- * deployed to a real clinic needs per-user login before it handles a patient's
- * name.
- *
- * The key is never compiled into the frontend bundle. Staff type it once on the
- * dashboard and the browser keeps it; otherwise it would be readable by anyone
- * who opened devtools, which would make it decoration rather than a lock.
+ * Staff type the key into the dashboard once. It is never compiled into the
+ * frontend bundle, where any patient could read it from devtools.
  */
 export const requireStaffKey: RequestHandler = (req, _res, next) => {
   const expected = process.env.STAFF_KEY;
 
-  // Fail closed. An unset key means the deployment is misconfigured, and the
-  // safe reading of that is "nobody gets in", not "everybody does".
+  // Fail closed: an unset key is a misconfiguration, not an open door.
   if (!expected) {
     next(new AppError('Staff access is not configured', 500, 'STAFF_KEY_UNSET'));
     return;
@@ -41,20 +31,12 @@ export const requireStaffKey: RequestHandler = (req, _res, next) => {
   next();
 };
 
-/**
- * Compares in constant time.
- *
- * `===` on strings returns as soon as two characters differ, so how long it
- * takes leaks how much of the key was right. Not a realistic attack over the
- * internet, but comparing secrets this way costs one function and removes the
- * question.
- */
+/** Constant time: `===` returns early on the first differing character. */
 function matches(provided: string, expected: string): boolean {
   const a = Buffer.from(provided);
   const b = Buffer.from(expected);
 
-  // timingSafeEqual throws on length mismatch, which would leak the length.
-  // Comparing the key against itself keeps the work constant either way.
+  // Throws on a length mismatch, which would itself leak the length.
   if (a.length !== b.length) {
     timingSafeEqual(b, b);
     return false;

@@ -10,21 +10,17 @@ import type {
 /**
  * Typed client for the backend REST API.
  *
- * Every endpoint lives here rather than being fetched from components, so the
- * transport is one replaceable layer. Phase 3 adds a socket for *updates*, but
- * these calls stay: the socket is a hint that something changed, and this is
- * still how a client learns the truth — on first load, and again after any
- * reconnect.
+ * The socket says something changed; this is how a client learns what is
+ * actually true, on first load and after every reconnect.
  *
- * Paths are relative. Vite proxies /api to :3001 in development, so no API
- * host is compiled into the bundle.
+ * Paths are relative — Vite proxies /api to :3001, so no API host is compiled
+ * into the bundle.
  */
 
 /** An error the server described: {error: {code, message}}. */
 export class ApiError extends Error {
-  // Declared as fields rather than constructor parameter properties: Vite sets
-  // `erasableSyntaxOnly`, which only allows TypeScript that vanishes at build
-  // time. Parameter properties emit real assignments, so they are out.
+  // Fields rather than constructor parameter properties: Vite's
+  // `erasableSyntaxOnly` only allows TypeScript that vanishes at build time.
   readonly code: string
   readonly status: number
 
@@ -52,8 +48,8 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
       ...init,
     })
   } catch {
-    // fetch only rejects when the request never completed — offline, DNS,
-    // connection refused. An HTTP error status is a resolved promise.
+    // fetch only rejects when the request never completed. An HTTP error
+    // status is a resolved promise.
     throw new ApiError('Cannot reach the server', 'NETWORK_ERROR', 0)
   }
 
@@ -94,11 +90,8 @@ export const cancelTicket = (ticketId: string) =>
 // ─── Staff ──────────────────────────────────────────────────
 
 /**
- * Staff calls carry the shared key as a header.
- *
- * A missing key produces the same 401 as a wrong one, which the dashboard turns
- * into a prompt rather than an error — on a fresh reception machine the key has
- * simply not been entered yet.
+ * Staff calls carry the shared key as a header. A missing key gives the same
+ * 401 as a wrong one, which the dashboard turns into a prompt.
  */
 const staffRequest = <T>(path: string, init?: RequestInit) =>
   request<T>(path, {

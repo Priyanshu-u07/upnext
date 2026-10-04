@@ -8,19 +8,13 @@ import type { Service } from '../types'
 /**
  * The screen on the wall.
  *
- * It shows a token, never a name. In the clinic the receptionist calls your
- * name across a full waiting room, which tells everyone present who you are and
- * which doctor you are here to see. "A-07" tells them nothing.
+ * A token, never a name: calling a name across a waiting room tells everyone
+ * present who you are and which doctor you are seeing. It is also the only
+ * surface for someone without a smartphone, so it has to read from the back of
+ * the room.
  *
- * It is also the only surface for someone without a smartphone, so it has to be
- * readable from the back of the room: one number, as large as the screen
- * allows, and nothing competing with it.
- *
- * This screen is the clearest illustration of what the socket bought. It needs
- * only the state every viewer shares, which the event payload already carries,
- * so after the first REST read it makes no further requests at all — it used to
- * poll every three seconds, forever, to show a number that changes a few times
- * an hour.
+ * Everything it shows is in the event payload, so after the first REST read it
+ * makes no further requests at all.
  */
 export default function PublicDisplay() {
   const [service, setService] = useState<Service | null>(null)
@@ -36,12 +30,8 @@ export default function PublicDisplay() {
   return (
     <main className="flex min-h-screen flex-col bg-slate-950 text-white">
       <div className="flex flex-1 flex-col items-center justify-center px-6 text-center">
-        {/*
-          An idle queue gets words, not a placeholder. Rendering a dash at this
-          size turns it into a white bar the width of the screen, which reads as
-          a broken display rather than an empty one — and the one thing a screen
-          on a wall must never do is look broken.
-        */}
+        {/* Words, not a placeholder: a dash at this size is a white bar the
+            width of the screen, which reads as broken rather than idle. */}
         {queue?.currentlyServing ? (
           <>
             <p className="text-2xl tracking-[0.3em] text-slate-500 uppercase">Now serving</p>
@@ -60,11 +50,8 @@ export default function PublicDisplay() {
         </p>
       </div>
 
-      {/*
-        The join code sits at the bottom, deliberately below the fold of
-        attention. Someone already holding a token needs the number; only
-        someone who has just walked in needs the code, and they will look for it.
-      */}
+      {/* The code sits below the number: only someone who has just walked in
+          needs it, and they will look for it. */}
       <footer className="flex items-end justify-between gap-6 px-10 pb-8">
         <div className="flex flex-col gap-3">
           <ConnectionStatus connection={connection} dark />

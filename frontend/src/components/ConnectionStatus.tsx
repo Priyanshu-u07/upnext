@@ -1,13 +1,10 @@
-import type { ConnectionState } from '../context/SocketContext'
+import type { ConnectionState } from '../hooks/useSocket'
 
 /**
- * Says whether what is on screen is live.
+ * Says whether what is on screen is live, and stays silent while it is.
  *
- * It stays silent while connected. A patient does not need to be told things
- * are fine — they need to be told when they are not, because a queue position
- * that has quietly stopped updating looks exactly like one that has not
- * changed. Somebody deciding whether it is safe to step out deserves to know
- * the difference.
+ * A position that has quietly stopped updating looks exactly like one that has
+ * not changed, and someone deciding whether to step out needs the difference.
  */
 const LABELS: Record<ConnectionState, string | null> = {
   connected: null,

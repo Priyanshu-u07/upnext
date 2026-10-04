@@ -1,13 +1,10 @@
 /**
- * Remembers which ticket this device holds.
+ * Remembers which ticket this device holds, so a closed tab or a sleeping phone
+ * does not lose someone's place — which would recreate the exact problem this
+ * project exists to solve.
  *
- * A patient closes the tab, or their phone sleeps and the browser discards the
- * page. Losing the token at that point would recreate the exact problem this
- * project exists to solve, so the id outlives the page.
- *
- * Every call is wrapped: localStorage throws in private mode and when site
- * data is blocked. A patient with cookies disabled should see a working page
- * that forgets their ticket, not a crash.
+ * Every call is wrapped: localStorage throws in private mode and when site data
+ * is blocked, and that should forget the ticket rather than crash.
  */
 const TICKET_KEY = 'queue.ticketId'
 
@@ -35,12 +32,7 @@ export function clearStoredTicketId(): void {
   }
 }
 
-/**
- * The reception desk's shared key.
- *
- * Kept here rather than compiled into the bundle, so it is not readable by any
- * patient who opens devtools. Staff type it once per machine.
- */
+/** Typed once per machine, so the key is never compiled into the bundle. */
 const STAFF_KEY = 'queue.staffKey'
 
 export function getStaffKey(): string | null {
