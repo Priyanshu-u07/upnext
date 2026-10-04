@@ -1,8 +1,8 @@
 {
-  "name": "queue-management-backend",
+  "name": "upnext-backend",
   "version": "1.0.0",
   "type": "module",
-  "description": "Real-Time Queue Management System - Backend API",
+  "description": "UpNext - real-time queue backend",
   "main": "dist/server.js",
   "scripts": {
     "postinstall": "prisma generate",

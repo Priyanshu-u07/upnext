@@ -19,7 +19,7 @@ initSocket(server);
 server.listen(PORT, () => {
   console.log(`
   ╔══════════════════════════════════════════════╗
-  ║   Queue Management System — Backend API      ║
+  ║   UpNext — Backend API                       ║
   ║   Running on: http://localhost:${PORT}           ║
   ║   Health:     http://localhost:${PORT}/api/health ║
   ╚══════════════════════════════════════════════╝

@@ -1,4 +1,4 @@
-# Queue
+# UpNext
 
 A digital token system for places where you currently wait by standing within
 earshot of someone calling names.

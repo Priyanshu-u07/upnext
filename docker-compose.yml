@@ -1,7 +1,7 @@
 services:
   postgres:
     image: postgres:16-alpine
-    container_name: queue-db
+    container_name: upnext-db
     restart: unless-stopped
     ports:
       - '5432:5432'
