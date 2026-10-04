@@ -88,21 +88,21 @@ have to stand there and watch it. You still cannot leave.
 Once people are allowed to leave, a wrong estimate becomes dangerous.
 
 If the system says **45 minutes** and the real wait is 20, the patient goes far away and
-misses their turn — and in this clinic that means going to the end of the line. The system
+misses their turn, and in this clinic that means going to the end of the line. The system
 has now cost them two hours. It has made things worse than the notebook.
 
 If the system says **20 minutes** and the real wait is 45, the patient comes back early
 and sits for a while. Nothing bad happens.
 
 So the estimate leans early on purpose. The system shows a range, and **the smaller number
-is the one that matters** — it means "be back by this time".
+is the one that matters**. It means "be back by this time".
 
 ## What this does not fix
 
 - **It assumes everyone in a queue takes about the same time.** The estimate is
   built from one average per service. That holds for general consultation, where
   almost every patient needs about ten minutes. It would not hold for a queue
-  mixing a ten-minute job with a fifty-minute one — the wait shown would be wrong
+  mixing a ten-minute job with a fifty-minute one. The wait shown would be wrong
   for most of the people reading it, and the wait is the whole reason anyone
   feels safe leaving.
 - **It does not make the doctor faster.** If a hundred people each need ten minutes, that

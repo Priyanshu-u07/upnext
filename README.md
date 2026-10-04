@@ -8,7 +8,7 @@ earshot of someone calling names.
 ## The problem
 
 I sat for two hours in a small clinic that sees about 100 patients a day. There
-is no appointment system — a receptionist writes your name in a notebook and
+is no appointment system. A receptionist writes your name in a notebook and
 calls it out when your turn comes.
 
 The notebook is not the problem. It keeps fair order and it never crashes. The
@@ -22,7 +22,7 @@ again at the back. So nobody risks stepping out, even for five minutes.
 Large hospitals have OPD apps and big restaurants hand you a buzzer. That
 solution never reached the small clinic.
 
-[**PROBLEM.md**](PROBLEM.md) has the full write-up — what goes wrong, why a
+[**PROBLEM.md**](PROBLEM.md) has the full write-up: what goes wrong, why a
 token machine alone does not fix it, and what this does *not* solve.
 
 ## What it does
@@ -41,7 +41,7 @@ Two decisions that fall out of the problem rather than out of a feature list:
 
 **The wait estimate leans early, deliberately.** Say 45 minutes when it is
 really 20 and the patient goes far away, misses their turn, and lands at the
-back of the line — worse than the notebook. Say 20 when it is really 45 and they
+back of the line, which is worse than the notebook. Say 20 when it is really 45 and they
 come back early and sit down. The errors are not symmetric, so the screen shows
 "be back in about 20 minutes", not the upper bound.
 
@@ -67,7 +67,7 @@ Three separate races, and the first masked the other two.
    create it. One won.
 2. With that fixed, requests reached the real bug: `MAX(tokenNumber) + 1` at
    PostgreSQL's default Read Committed isolation, where concurrent transactions
-   see the same maximum. The unique constraint rejected the losers — so the data
+   see the same maximum. The unique constraint rejected the losers, so the data
    stayed correct and 81 patients got an error instead of a token.
 3. Fixed by claiming tokens with
    `UPDATE … SET lastTokenNumber = lastTokenNumber + 1 RETURNING`, which takes a
@@ -82,8 +82,8 @@ counter 1 called A-01, counter 2 called A-02
 Worse than the join race, because **nothing in the schema catches it**: both
 transactions read the lowest waiting ticket, both update it, and the second
 write wins silently. Fixed with `SELECT … FOR UPDATE SKIP LOCKED`.
-`SKIP LOCKED` rather than plain locking because counter 2 should not *wait* for
-counter 1 — it should take the next patient, which is what two counters working
+`SKIP LOCKED` rather than plain locking, because counter 2 should not *wait* for
+counter 1. It should take the next patient, which is what two counters working
 side by side do.
 
 ### Reproduce
@@ -101,7 +101,7 @@ Requires Node 20+ and Docker.
 # 1. PostgreSQL
 docker compose up -d
 
-# 2. Backend — http://localhost:3001
+# 2. Backend at http://localhost:3001
 cd backend
 cp .env.example .env          # then edit if you want a different staff key
 npm install                   # postinstall generates the Prisma client
@@ -109,7 +109,7 @@ npx prisma migrate deploy
 npm run db:seed
 npm run dev
 
-# 3. Frontend — http://localhost:5173
+# 3. Frontend at http://localhost:5173
 cd ../frontend
 npm install
 npm run dev
@@ -120,24 +120,25 @@ for the key from `STAFF_KEY` in `backend/.env`.
 
 ### If it does not start
 
-**`failed to connect to the docker API`** — Docker is installed but not running.
+**`failed to connect to the docker API`**: Docker is installed but not running.
 Start Docker Desktop and wait for it to finish starting, then try again.
 
-**`port is already allocated`** on 5432 — something else is already running
+**`port is already allocated`** on 5432: something else is already running
 PostgreSQL. Stop it, or change the host port in `docker-compose.yml` to
 `5433:5432` and update `DATABASE_URL` in `backend/.env` to match.
 
-**The page loads but every number shows `—`** — the backend is not running, or
+**The page loads but every number shows `—`**: the backend is not running, or
 is not on port 3001. Check http://localhost:3001/api/health returns
 `{"status":"ok"}`.
 
-**The staff dashboard asks for a key** — that is expected. It is `STAFF_KEY`
+**The staff dashboard asks for a key**: that is expected. It is `STAFF_KEY`
 from `backend/.env`, and it is only asked once per browser.
 
 ## Using it for your own place
 
-The venue is data, not code. Nothing in the schema knows what a clinic is —
-`Organization`, `Service`, `Queue`, `Ticket` — so changing it is changing rows.
+The venue is data, not code. Nothing in the schema knows what a clinic is. The
+tables are `Organization`, `Service`, `Queue` and `Ticket`, so changing the
+venue means changing rows.
 
 Edit `backend/prisma/seed.ts`:
 
@@ -153,8 +154,8 @@ Then `npm run db:seed` and it is your queue.
 
 One rule when choosing services: **a service is a line with its own server**,
 not a thing a customer can ask for. A clinic with a doctor and a lab technician
-is two services. One person offering two kinds of appointment is *one* service —
-splitting it would make the system call two people at once.
+is two services. One person offering two kinds of appointment is *one* service,
+and splitting it would make the system call two people at once.
 
 Also change `STAFF_KEY` in `backend/.env` before anyone else can reach it.
 
@@ -167,7 +168,7 @@ on its own.
 
 For a single clinic you may not need a server at all: run it on the reception
 computer with `npm run dev:lan`, and phones on the clinic's wifi can reach it.
-That costs nothing and survives the internet going down — but it only works
+That costs nothing and survives the internet going down, but it only works
 while people stay on that wifi, so it suits somewhere people wait just outside
 rather than walking away.
 
@@ -186,17 +187,17 @@ again after every reconnect, and treats events as updates on top of state it
 already trusts.
 
 Without that, a phone that loses signal reconnects to a live socket and sits
-there showing a ten-minute-old queue — no error, no spinner, just confidently
-wrong. That is worse than no real-time at all, because the patient has no reason
+there showing a ten-minute-old queue, with no error and no spinner, just
+confidently wrong. That is worse than no real-time at all, because the patient has no reason
 to doubt it.
 
 One `QUEUE_UPDATED` event covers every change rather than six fine-grained ones.
-Every screen wants the same thing — the current state of the queue — and a
+Every screen wants the same thing: the current state of the queue. A
 fine-grained event that a client forgets to handle becomes a screen that
 silently goes stale. The payload carries the state identical for every viewer,
 so the wall display re-renders without making a request. It cannot carry a
 patient's own position, since that differs per viewer, so phones refetch their
-own ticket — but only on actions that could have moved them. Someone joining
+own ticket, but only on actions that could have moved them. Someone joining
 *behind* you does not change your position.
 
 See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for the data model, the ticket
@@ -231,8 +232,8 @@ Staff routes require an `x-staff-key` header.
 | Prisma | 7 | Typed queries; raw SQL where it cannot express a lock clause |
 | Express | 5 | Small, and the interesting parts are not in the framework |
 | Socket.IO | 4 | Rooms, heartbeats and reconnection with backoff, rather than hand-rolling them |
-| React | 19 | — |
-| Vite + Tailwind | 8 / 4 | — |
+| React | 19 | |
+| Vite + Tailwind | 8 / 4 | |
 | Vitest | 5 | Tests run against a real PostgreSQL; a mocked client cannot prove an isolation-level bug |
 
 ## What this does not do
@@ -245,7 +246,7 @@ Stated plainly because they are real.
 - **Every person in a queue is assumed to take about the same time.**
   `averageServiceTime` belongs to the service, not the ticket. That works where a
   queue is one kind of job, but a single line mixing a 25-minute job with a
-  10-minute one would show an estimate that is wrong for most people in it — and
+  10-minute one would show an estimate that is wrong for most people in it, and
   the estimate is the whole reason someone feels safe leaving.
 - **It does not make the doctor faster.** It moves waiting out of the room; it
   does not remove it.

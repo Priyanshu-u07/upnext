@@ -47,13 +47,13 @@ User ──< Ticket
 
 ## What a Service means, and what it cannot express
 
-A `Service` is **a line that advances independently of other lines** — not simply
+A `Service` is **a line that advances independently of other lines**, not simply
 a thing a customer can ask for. Two services means two queues moving in parallel,
 which means two people serving: `A-01` and `B-01` can be called in the same
 moment because the clinic has both a doctor and a lab technician.
 
 The opposite case is two doctors sharing one waiting list. That is **one**
-service with two `Counter` rows — one line, and the next patient goes to
+service with two `Counter` rows: one line, and the next patient goes to
 whichever doctor is free.
 
 Getting it backwards would be visible immediately. Split one line into two
@@ -63,7 +63,7 @@ clinic had grown a second doctor.
 Which exposes a limitation: **`averageServiceTime` belongs to the service, not
 the ticket.** Every person in a queue is assumed to take about the same time. A
 single line where one customer needs 25 minutes and the next needs 10 cannot be
-estimated accurately here — the wait shown would be an average that is wrong for
+estimated accurately here. The wait shown would be an average that is wrong for
 nearly everyone in it.
 
 Fixing it properly would mean a service time per ticket, chosen when joining,
@@ -100,7 +100,7 @@ WHERE "customerId" IS NOT NULL
 The last one is hand-written SQL: Prisma's schema language cannot express a
 partial index, so it does not appear in `schema.prisma` and `prisma migrate dev`
 will report drift. It is partial because the rule only applies while a ticket is
-live — once a visit is finished the same patient must be free to join again.
+live. Once a visit is finished the same patient must be free to join again.
 
 ## Ticket state machine
 
@@ -139,7 +139,7 @@ Fixed with `upsert`.
 
 One catch: Prisma only compiles an upsert into a single `INSERT … ON CONFLICT`
 when the `update` clause is **non-empty**. Written `update: {}` it falls back to
-find-then-create — the same race wearing the word "upsert".
+find-then-create, the same race wearing the word "upsert".
 
 ### Token numbers
 
@@ -181,7 +181,7 @@ FOR UPDATE SKIP LOCKED
 
 Raw SQL, because Prisma cannot express the locking clause. `SKIP LOCKED` rather
 than plain `FOR UPDATE` so counter 2 steps over the row counter 1 holds and takes
-the *next* patient instead of blocking — which is what two counters working side
+the *next* patient instead of blocking, which is what two counters working side
 by side should do.
 
 ### One ticket per patient
@@ -228,13 +228,13 @@ interface QueueUpdatedPayload {
 }
 ```
 
-Every screen wants the same thing — the current state of the queue. Fine-grained
+Every screen wants the same thing: the current state of the queue. Fine-grained
 events mean each client must handle every type, and any type someone forgets
 becomes a screen that silently goes stale.
 
 The payload carries what is **identical for every viewer**, so the wall display
 updates without making a request. It cannot carry a patient's own position,
-which differs per viewer, so phones refetch their own ticket — but only when the
+which differs per viewer, so phones refetch their own ticket, but only when the
 action could have moved them. Someone joining *behind* you does not change your
 position, so `JOINED` is skipped. At a hundred connected phones that is the
 difference between one button press and a hundred simultaneous requests.
@@ -245,7 +245,7 @@ Clients read over REST when they mount and **again after every reconnect**, and
 treat events as updates on top of state they already trust.
 
 Without it, a phone that loses signal reconnects to a live socket and shows a
-ten-minute-old queue — no error, no spinner, just confidently wrong.
+ten-minute-old queue, with no error and no spinner, just confidently wrong.
 
 Two ordering guards:
 
@@ -263,7 +263,7 @@ wake every phone waiting for general consultation.
 
 Tests run against a real PostgreSQL in a separate database
 (`queue_management_test`). The races under test are properties of the database's
-isolation level, so a mocked client would prove nothing — it would happily report
+isolation level, so a mocked client would prove nothing. It would happily report
 that the code is correct when it is not.
 
 `vitest.config.ts` loads `.env.test` in the config file rather than a setup file,
